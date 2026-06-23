@@ -51,8 +51,17 @@ This repository includes two release helpers in the project root:
 
 - `release.cmd` for quick usage from Command Prompt
 - `release.ps1` for full control in PowerShell
+- `release.sh` for Bash shells (Git Bash, WSL, etc.)
 
 Both scripts update the version in `AstroDashboard.csproj`, commit the change, create a Git tag, and push the current branch and tag.
+
+When the tag is pushed, GitHub Actions workflow `.github/workflows/release.yml` is triggered automatically and performs a Release publish build.
+
+Release workflow outputs:
+
+- A Release build for `win-x64`
+- A zipped package: `AstroDashboard-vX.Y.Z-win-x64.zip`
+- A GitHub Release entry with release notes and attached zip asset
 
 ### Quick Release (CMD)
 
@@ -76,6 +85,16 @@ release.cmd patch
 .\release.ps1 -BumpType patch
 ```
 
+### Bash Release
+
+```bash
+./release.sh patch
+./release.sh minor
+./release.sh major
+```
+
+The Bash wrapper accepts exactly one parameter and forwards it to `release.ps1`.
+
 Supported bump types:
 
 - `major`
@@ -92,6 +111,7 @@ Notes:
 
 - If `<Version>` is missing in the project file, the script adds it using `DefaultVersion` before bumping.
 - The script also sets `<AssemblyVersion>` and `<FileVersion>` to `x.y.z.0`.
+- The script runs a local `dotnet build -c Release` validation before commit/tag/push.
 - You will be prompted to confirm before changes are applied.
 
 ## Directory Structure

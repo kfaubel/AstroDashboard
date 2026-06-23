@@ -87,6 +87,11 @@ $propertyGroup.FileVersion = $newVersionFull
 $projectXml.Save($csprojPath)
 Write-Host "Version updated" -ForegroundColor Green
 
+Write-Host "`nRunning Release build validation..." -ForegroundColor Cyan
+dotnet restore
+dotnet build "$csprojPath" -c Release
+Write-Host "Release build validation passed" -ForegroundColor Green
+
 Write-Host "`nGit operations..." -ForegroundColor Cyan
 git add $csprojPath
 git commit -m "Bump version to $newVersion"

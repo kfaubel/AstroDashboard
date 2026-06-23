@@ -1,0 +1,53 @@
+name: Release Build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore AstroDashboard.csproj
+
+      - name: Build (Release)
+        run: dotnet build AstroDashboard.csproj -c Release --no-restore
+
+      - name: Publish (Release)
+        run: dotnet publish AstroDashboard.csproj -c Release -r win-x64 --self-contained false -o publish/win-x64
+
+      - name: Create zip package
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $zipName = "AstroDashboard-$tag-win-x64.zip"
+          Compress-Archive -Path "publish/win-x64/*" -DestinationPath $zipName -Force
+          "ZIP_NAME=$zipName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AstroDashboard-win-x64-${{ github.ref_name }}
+          path: ${{ env.ZIP_NAME }}
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ZIP_NAME }}
+          generate_release_notes: true
