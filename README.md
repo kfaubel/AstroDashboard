@@ -61,7 +61,10 @@ Release workflow outputs:
 
 - A Release build for `win-x64`
 - A zipped package: `AstroDashboard-vX.Y.Z-win-x64.zip`
+- An installer executable: `AstroDashboard-Setup-X.Y.Z.exe`
 - A GitHub Release entry with release notes and attached zip asset
+
+The workflow also supports manual runs (`workflow_dispatch`) with an option to include or skip installer generation.
 
 ### Quick Release (CMD)
 
@@ -113,6 +116,17 @@ Notes:
 - The script also sets `<AssemblyVersion>` and `<FileVersion>` to `x.y.z.0`.
 - The script runs a local `dotnet build -c Release` validation before commit/tag/push.
 - You will be prompted to confirm before changes are applied.
+
+### Building the Installer Locally (Optional)
+
+```powershell
+dotnet publish AstroDashboard.csproj -c Release -r win-x64 --self-contained false -o publish
+"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=1.2.3" installer.iss
+```
+
+Installer output path:
+
+- `installer-output/AstroDashboard-Setup-X.Y.Z.exe`
 
 ## Directory Structure
 

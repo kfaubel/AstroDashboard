@@ -5,6 +5,12 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      build_installer:
+        description: "Build installer executable"
+        required: true
+        default: true
+        type: boolean
 
 permissions:
   contents: write
@@ -29,14 +35,14 @@ jobs:
         run: dotnet build AstroDashboard.csproj -c Release --no-restore
 
       - name: Publish (Release)
-        run: dotnet publish AstroDashboard.csproj -c Release -r win-x64 --self-contained false -o publish/win-x64
+        run: dotnet publish AstroDashboard.csproj -c Release -r win-x64 --self-contained false -o publish
 
       - name: Create zip package
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
           $zipName = "AstroDashboard-$tag-win-x64.zip"
-          Compress-Archive -Path "publish/win-x64/*" -DestinationPath $zipName -Force
+          Compress-Archive -Path "publish/*" -DestinationPath $zipName -Force
           "ZIP_NAME=$zipName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Upload build artifact
@@ -45,9 +51,33 @@ jobs:
           name: AstroDashboard-win-x64-${{ github.ref_name }}
           path: ${{ env.ZIP_NAME }}
 
+      - name: Install Inno Setup
+        if: github.event_name != 'workflow_dispatch' || inputs.build_installer == true
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer executable
+        if: github.event_name != 'workflow_dispatch' || inputs.build_installer == true
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}"
+          if ($version.StartsWith('v')) { $version = $version.Substring(1) }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$version" "installer.iss"
+          $installerName = "AstroDashboard-Setup-$version.exe"
+          "INSTALLER_NAME=$installerName" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Upload installer artifact
+        if: github.event_name != 'workflow_dispatch' || inputs.build_installer == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: AstroDashboard-installer-${{ github.ref_name }}
+          path: installer-output/${{ env.INSTALLER_NAME }}
+
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.ZIP_NAME }}
+          files: |
+            ${{ env.ZIP_NAME }}
+            installer-output/${{ env.INSTALLER_NAME }}
           generate_release_notes: true
