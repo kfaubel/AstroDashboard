@@ -1,4 +1,5 @@
 using AstroDashboard.Models;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using System.IO;
 
@@ -8,7 +9,9 @@ public class DirectoryScanner
 {
     private const string DataFolderName = "Data";
     private static readonly Regex NightFolderPattern = new(@"^NIGHT_\d{4}-\d{2}-\d{2}$");
-    private static readonly Regex FitsFilePattern = new(@"^(\d{4}-\d{2}-\d{2})_\d{2}-\d{2}-\d{2}_([LRGBSHO])_.+?_(\d+(?:\.\d+)?)s_");
+    private static readonly Regex FitsFilePattern = new(@"^(\d{4}-\d{2}-\d{2})_\d{2}-\d{2}-\d{2}_(.*?)_.+?_(\d+(?:\.\d+)?)s(?:_|\.)", RegexOptions.IgnoreCase);
+    private static readonly Regex RmsPattern = new(@"(?:^|_)RMS_(-?\d+(?:\.\d+)?)", RegexOptions.IgnoreCase);
+    private static readonly Regex HfrPattern = new(@"(?:^|_)HFR_(-?\d+(?:\.\d+)?)", RegexOptions.IgnoreCase);
     
     public class ProjectData
     {
@@ -52,11 +55,9 @@ public class DirectoryScanner
                         ProjectName = pathParts.Item2,
                         Files = ScanDataFolder(dir)
                     };
-                    
-                    if (projectData.Files.Count > 0)
-                    {
-                        results.Add(projectData);
-                    }
+
+                    // Keep the project even if it currently has no parsable files so folder visibility is complete.
+                    results.Add(projectData);
                 }
                 else
                 {
@@ -156,13 +157,23 @@ public class DirectoryScanner
         {
             return null;
         }
-        
-        if (!char.TryParse(match.Groups[2].Value, out var filter))
+
+        if (!TryParseFilter(match.Groups[2].Value, out var filter))
         {
             return null;
         }
-        
-        if (!double.TryParse(match.Groups[3].Value, out var exposure))
+
+        if (!double.TryParse(match.Groups[3].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var exposure))
+        {
+            return null;
+        }
+
+        if (!TryParseMetricAfterToken(fileName, RmsPattern, out var rms))
+        {
+            return null;
+        }
+
+        if (!TryParseMetricAfterToken(fileName, HfrPattern, out var hfr))
         {
             return null;
         }
@@ -172,7 +183,74 @@ public class DirectoryScanner
             FileName = fileName,
             Date = date,
             Filter = filter,
-            ExposureSeconds = exposure
+            ExposureSeconds = exposure,
+            Rms = rms,
+            Hfr = hfr
         };
+    }
+
+    private static bool TryParseMetricAfterToken(string fileName, Regex pattern, out double value)
+    {
+        value = 0;
+        var metricMatch = pattern.Match(fileName);
+        if (!metricMatch.Success)
+        {
+            return false;
+        }
+
+        return double.TryParse(metricMatch.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+    }
+
+    private static bool TryParseFilter(string token, out char filter)
+    {
+        filter = default;
+        var normalized = token.Trim();
+
+        if (string.IsNullOrEmpty(normalized))
+        {
+            return false;
+        }
+
+        if (normalized.Length == 1)
+        {
+            var single = char.ToUpperInvariant(normalized[0]);
+            if (single is 'L' or 'R' or 'G' or 'B' or 'S' or 'H' or 'O')
+            {
+                filter = single;
+                return true;
+            }
+        }
+
+        switch (normalized.ToUpperInvariant())
+        {
+            case "RED":
+                filter = 'R';
+                return true;
+            case "GREEN":
+                filter = 'G';
+                return true;
+            case "BLUE":
+                filter = 'B';
+                return true;
+            case "LUMINANCE":
+            case "LUM":
+                filter = 'L';
+                return true;
+            case "SII":
+            case "S2":
+                filter = 'S';
+                return true;
+            case "HA":
+            case "HALPHA":
+            case "HYDROGEN":
+                filter = 'H';
+                return true;
+            case "OIII":
+            case "O3":
+                filter = 'O';
+                return true;
+            default:
+                return false;
+        }
     }
 }

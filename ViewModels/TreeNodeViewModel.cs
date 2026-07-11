@@ -16,10 +16,26 @@ public class TreeNodeViewModel : BaseViewModel
     public int Depth { get; private set; }
     public int? FileCount { get; }
     public double? TotalExposureMinutes { get; }
+    public double? AverageRms { get; }
+    public double? AverageHfr { get; }
     public string FileCountText => FileCount.HasValue ? FileCount.Value.ToString(CultureInfo.InvariantCulture) : string.Empty;
     public string MinutesText => TotalExposureMinutes.HasValue
-        ? Math.Round(TotalExposureMinutes.Value, 0, MidpointRounding.AwayFromZero).ToString("F0", CultureInfo.InvariantCulture)
+        ? FormatAsHoursMinutes(TotalExposureMinutes.Value)
         : string.Empty;
+    public string AverageRmsText => AverageRms.HasValue
+        ? AverageRms.Value.ToString("F2", CultureInfo.InvariantCulture)
+        : string.Empty;
+    public string AverageHfrText => AverageHfr.HasValue
+        ? AverageHfr.Value.ToString("F2", CultureInfo.InvariantCulture)
+        : string.Empty;
+
+    private static string FormatAsHoursMinutes(double totalExposureMinutes)
+    {
+        var totalMinutes = Math.Max(0, (int)Math.Round(totalExposureMinutes, 0, MidpointRounding.AwayFromZero));
+        var hours = totalMinutes / 60;
+        var minutes = totalMinutes % 60;
+        return string.Format(CultureInfo.InvariantCulture, "{0:D2}:{1:D2}", hours, minutes);
+    }
 
     public bool IsExpanded
     {
@@ -45,7 +61,9 @@ public class TreeNodeViewModel : BaseViewModel
         string? associatedData = null,
         int depth = 0,
         int? fileCount = null,
-        double? totalExposureMinutes = null)
+        double? totalExposureMinutes = null,
+        double? averageRms = null,
+        double? averageHfr = null)
     {
         Name = name;
         NodeType = nodeType;
@@ -53,6 +71,8 @@ public class TreeNodeViewModel : BaseViewModel
         Depth = depth;
         FileCount = fileCount;
         TotalExposureMinutes = totalExposureMinutes;
+        AverageRms = averageRms;
+        AverageHfr = averageHfr;
         _children = new ObservableCollection<TreeNodeViewModel>();
         _isExpanded = false;
         _isSelected = false;

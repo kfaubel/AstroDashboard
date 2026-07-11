@@ -9,6 +9,7 @@ A C# WPF application for scanning and analyzing astrophotography data from FITS 
 - **Toggle Date Visibility**: Show/hide dates in the summary by default
 - **Filter Statistics**: L, R, G, B, S, H, O filters with automatic grouping
 - **Exposure Time Calculations**: Automatically parse and sum exposure times from filenames
+- **RMS/HFR Metrics**: Parses RMS and HFR values from FITS filenames and shows averages
 - **Subtotals & Grand Totals**: Per-filter totals and complete session totals
 
 ## Building the Application
@@ -167,6 +168,8 @@ Example:
 - **Date**: `2026-06-10` (extracted from filename)
 - **Filter**: `L` (single letter: L, R, G, B, S, H, or O)
 - **Exposure**: `120.00s` (parsed as seconds, converted to minutes in display)
+- **RMS**: token value after `RMS` (for example, `RMS_7.78`)
+- **HFR**: token value after `HFR` (for example, `HFR_1.84`)
 
 ## UI Layout
 
@@ -174,6 +177,7 @@ Example:
 - One hierarchical tree that combines folder structure and summary data
 - Hierarchy: Telescope → Project → Filter → Night
 - Columns: **Name**, **Files**, **Minutes**
+- Added metrics column: **Avg RMS / HFR** (shown for project/target, filter, and night rows)
 - Files and minutes are right-aligned for easy comparison
 - Project rows are bold
 

@@ -46,11 +46,15 @@
                         <ColumnDefinition Width="520"/>
                         <ColumnDefinition Width="140"/>
                         <ColumnDefinition Width="140"/>
+                        <ColumnDefinition Width="120"/>
+                        <ColumnDefinition Width="120"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" Text="Name" FontWeight="SemiBold" Padding="10,6"/>
                     <TextBlock Grid.Column="1" Text="Files" FontWeight="SemiBold" Padding="10,6" TextAlignment="Right"/>
-                    <TextBlock Grid.Column="2" Text="Minutes" FontWeight="SemiBold" Padding="10,6" TextAlignment="Right"/>
+                    <TextBlock Grid.Column="2" Text="HH:MM" FontWeight="SemiBold" Padding="10,6" TextAlignment="Right"/>
+                    <TextBlock Grid.Column="3" Text="Avg RMS" FontWeight="SemiBold" Padding="10,6" TextAlignment="Right"/>
+                    <TextBlock Grid.Column="4" Text="Avg HFR" FontWeight="SemiBold" Padding="10,6" TextAlignment="Right"/>
                 </Grid>
 
                 <TreeView Grid.Row="2" ItemsSource="{Binding TreeNodes}" Padding="4">
@@ -61,12 +65,16 @@
                                     <ColumnDefinition Width="520"/>
                                     <ColumnDefinition Width="140"/>
                                     <ColumnDefinition Width="140"/>
+                                    <ColumnDefinition Width="120"/>
+                                    <ColumnDefinition Width="120"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
                                 <TextBlock Grid.Column="0" Text="{Binding Name}" Margin="0,2,8,2" Foreground="{Binding NodeType, Converter={StaticResource NodeTypeColorConverter}}" FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}"/>
                                 <TextBlock Grid.Column="1" Text="{Binding FileCountText}" Margin="{Binding Depth, Converter={StaticResource DepthToNumericColumnMarginConverter}}" TextAlignment="Right" FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}"/>
                                 <TextBlock Grid.Column="2" Text="{Binding MinutesText}" Margin="{Binding Depth, Converter={StaticResource DepthToNumericColumnMarginConverter}}" TextAlignment="Right" FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}"/>
+                                <TextBlock Grid.Column="3" Text="{Binding AverageRmsText}" Margin="{Binding Depth, Converter={StaticResource DepthToNumericColumnMarginConverter}}" TextAlignment="Right" FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}"/>
+                                <TextBlock Grid.Column="4" Text="{Binding AverageHfrText}" Margin="{Binding Depth, Converter={StaticResource DepthToNumericColumnMarginConverter}}" TextAlignment="Right" FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}"/>
                             </Grid>
                         </HierarchicalDataTemplate>
                     </TreeView.ItemTemplate>

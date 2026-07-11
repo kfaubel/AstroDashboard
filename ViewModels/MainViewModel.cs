@@ -127,7 +127,9 @@ public class MainViewModel : BaseViewModel
                     projectGroup.Key,
                     "Project",
                     fileCount: projectFiles.Count,
-                    totalExposureMinutes: projectFiles.Sum(f => f.ExposureMinutes));
+                    totalExposureMinutes: projectFiles.Sum(f => f.ExposureMinutes),
+                    averageRms: projectFiles.Average(f => f.Rms),
+                    averageHfr: projectFiles.Average(f => f.Hfr));
                 projectNode.IsExpanded = false;
 
                 var filterGroups = projectFiles
@@ -140,7 +142,9 @@ public class MainViewModel : BaseViewModel
                         filterGroup.Key.ToString(),
                         "Filter",
                         fileCount: filterGroup.Count(),
-                        totalExposureMinutes: filterGroup.Sum(f => f.ExposureMinutes));
+                        totalExposureMinutes: filterGroup.Sum(f => f.ExposureMinutes),
+                        averageRms: filterGroup.Average(f => f.Rms),
+                        averageHfr: filterGroup.Average(f => f.Hfr));
 
                     var nightGroups = filterGroup
                         .GroupBy(f => f.Date.ToString("yyyy-MM-dd"))
@@ -153,7 +157,9 @@ public class MainViewModel : BaseViewModel
                             "Night",
                             associatedData: nightGroup.Key,
                             fileCount: nightGroup.Count(),
-                            totalExposureMinutes: nightGroup.Sum(f => f.ExposureMinutes));
+                            totalExposureMinutes: nightGroup.Sum(f => f.ExposureMinutes),
+                            averageRms: nightGroup.Average(f => f.Rms),
+                            averageHfr: nightGroup.Average(f => f.Hfr));
                         filterNode.AddChild(nightNode);
                     }
 

@@ -6,6 +6,8 @@ public class AstronomyData
     public DateTime Date { get; set; }
     public char Filter { get; set; }
     public double ExposureSeconds { get; set; }
+    public double Rms { get; set; }
+    public double Hfr { get; set; }
     
     public double ExposureMinutes => ExposureSeconds / 60.0;
 }
