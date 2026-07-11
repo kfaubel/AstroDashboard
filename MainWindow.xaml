@@ -11,6 +11,7 @@
         <local:NodeTypeColorConverter x:Key="NodeTypeColorConverter"/>
         <local:NodeTypeToFontWeightConverter x:Key="NodeTypeToFontWeightConverter"/>
         <local:DepthToNumericColumnMarginConverter x:Key="DepthToNumericColumnMarginConverter"/>
+        <local:NodeTypeToVisibilityConverter x:Key="NodeTypeToVisibilityConverter"/>
     </Window.Resources>
     <Grid Background="#F0F0F0">
         <Grid.RowDefinitions>
@@ -75,6 +76,18 @@
                                 <TextBlock Grid.Column="2" Text="{Binding MinutesText}" Margin="{Binding Depth, Converter={StaticResource DepthToNumericColumnMarginConverter}}" TextAlignment="Right" FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}"/>
                                 <TextBlock Grid.Column="3" Text="{Binding AverageRmsText}" Margin="{Binding Depth, Converter={StaticResource DepthToNumericColumnMarginConverter}}" TextAlignment="Right" FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}"/>
                                 <TextBlock Grid.Column="4" Text="{Binding AverageHfrText}" Margin="{Binding Depth, Converter={StaticResource DepthToNumericColumnMarginConverter}}" TextAlignment="Right" FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}"/>
+                                <Button Grid.Column="5"
+                                        Width="26"
+                                        Height="22"
+                                        Margin="6,1,0,1"
+                                        Padding="0"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        Content="🔎"
+                                        ToolTip="Open NIGHT folder in ApexAstro"
+                                        Visibility="{Binding NodeType, Converter={StaticResource NodeTypeToVisibilityConverter}, ConverterParameter=Night}"
+                                        Command="{Binding DataContext.OpenNightInApexAstroCommand, RelativeSource={RelativeSource AncestorType=TreeView}}"
+                                        CommandParameter="{Binding AssociatedData}"/>
                             </Grid>
                         </HierarchicalDataTemplate>
                     </TreeView.ItemTemplate>

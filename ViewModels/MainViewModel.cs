@@ -2,16 +2,20 @@ using AstroDashboard.Services;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using System.IO;
+using System.Diagnostics;
 
 namespace AstroDashboard.ViewModels;
 
 public class MainViewModel : BaseViewModel
 {
+    private static readonly char[] FilterDisplayOrder = ['L', 'R', 'G', 'B', 'S', 'H', 'O'];
+
     private readonly DirectoryScanner _scanner;
     private readonly PathStateService _pathStateService;
     private ObservableCollection<TreeNodeViewModel> _treeNodes;
     private string _statusMessage;
     private ICommand? _browseCommand;
+    private ICommand? _openNightInApexAstroCommand;
     private string _selectedPath;
     private List<DirectoryScanner.ProjectData> _allProjects;
 
@@ -34,6 +38,9 @@ public class MainViewModel : BaseViewModel
     }
 
     public ICommand BrowseCommand => _browseCommand ??= new RelayCommand(_ => BrowseForDirectory());
+    public ICommand OpenNightInApexAstroCommand => _openNightInApexAstroCommand ??= new RelayCommand(
+        path => OpenNightInApexAstro(path as string),
+        path => path is string p && !string.IsNullOrWhiteSpace(p));
     public ICommand RefreshCommand { get; }
 
     public MainViewModel()
@@ -128,42 +135,59 @@ public class MainViewModel : BaseViewModel
                     "Project",
                     fileCount: projectFiles.Count,
                     totalExposureMinutes: projectFiles.Sum(f => f.ExposureMinutes),
-                    averageRms: projectFiles.Average(f => f.Rms),
-                    averageHfr: projectFiles.Average(f => f.Hfr));
+                    averageRms: projectFiles.Any() ? projectFiles.Average(f => f.Rms) : null,
+                    averageHfr: projectFiles.Any() ? projectFiles.Average(f => f.Hfr) : null);
                 projectNode.IsExpanded = false;
 
-                var filterGroups = projectFiles
-                    .GroupBy(f => f.Filter)
-                    .OrderBy(g => GetFilterSortOrder(g.Key));
-
-                foreach (var filterGroup in filterGroups)
+                // Add project-level filter summary rows first.
+                foreach (var filter in FilterDisplayOrder)
                 {
-                    var filterNode = new TreeNodeViewModel(
-                        filterGroup.Key.ToString(),
+                    var filterFiles = projectFiles.Where(f => f.Filter == filter).ToList();
+                    var filterSummaryNode = new TreeNodeViewModel(
+                        filter.ToString(),
                         "Filter",
-                        fileCount: filterGroup.Count(),
-                        totalExposureMinutes: filterGroup.Sum(f => f.ExposureMinutes),
-                        averageRms: filterGroup.Average(f => f.Rms),
-                        averageHfr: filterGroup.Average(f => f.Hfr));
+                        fileCount: filterFiles.Count,
+                        totalExposureMinutes: filterFiles.Sum(f => f.ExposureMinutes),
+                        averageRms: filterFiles.Any() ? filterFiles.Average(f => f.Rms) : null,
+                        averageHfr: filterFiles.Any() ? filterFiles.Average(f => f.Hfr) : null);
+                    projectNode.AddChild(filterSummaryNode);
+                }
 
-                    var nightGroups = filterGroup
-                        .GroupBy(f => f.Date.ToString("yyyy-MM-dd"))
-                        .OrderBy(g => g.Key);
+                var nightGroups = projectFiles
+                    .Where(f => !string.IsNullOrWhiteSpace(f.NightFolderPath))
+                    .GroupBy(f => f.NightFolderPath)
+                    .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase);
 
-                    foreach (var nightGroup in nightGroups)
+                foreach (var nightGroup in nightGroups)
+                {
+                    var nightFolderPath = nightGroup.Key;
+                    var nightFolderName = Path.GetFileName(nightFolderPath);
+                    var nightNode = new TreeNodeViewModel(
+                        nightFolderName,
+                        "Night",
+                        associatedData: nightFolderPath,
+                        fileCount: nightGroup.Count(),
+                        totalExposureMinutes: nightGroup.Sum(f => f.ExposureMinutes),
+                        averageRms: nightGroup.Average(f => f.Rms),
+                        averageHfr: nightGroup.Average(f => f.Hfr));
+
+                    var filterGroups = nightGroup
+                        .GroupBy(f => f.Filter)
+                        .OrderBy(g => GetFilterSortOrder(g.Key));
+
+                    foreach (var filterGroup in filterGroups)
                     {
-                        var nightNode = new TreeNodeViewModel(
-                            $"NIGHT_{nightGroup.Key}",
-                            "Night",
-                            associatedData: nightGroup.Key,
-                            fileCount: nightGroup.Count(),
-                            totalExposureMinutes: nightGroup.Sum(f => f.ExposureMinutes),
-                            averageRms: nightGroup.Average(f => f.Rms),
-                            averageHfr: nightGroup.Average(f => f.Hfr));
-                        filterNode.AddChild(nightNode);
+                        var filterNode = new TreeNodeViewModel(
+                            filterGroup.Key.ToString(),
+                            "Filter",
+                            fileCount: filterGroup.Count(),
+                            totalExposureMinutes: filterGroup.Sum(f => f.ExposureMinutes),
+                            averageRms: filterGroup.Average(f => f.Rms),
+                            averageHfr: filterGroup.Average(f => f.Hfr));
+                        nightNode.AddChild(filterNode);
                     }
 
-                    projectNode.AddChild(filterNode);
+                    projectNode.AddChild(nightNode);
                 }
 
                 telescopeNode.AddChild(projectNode);
@@ -175,16 +199,68 @@ public class MainViewModel : BaseViewModel
 
     private static int GetFilterSortOrder(char filter)
     {
-        return filter switch
+        var index = Array.IndexOf(FilterDisplayOrder, filter);
+        return index >= 0 ? index : 99;
+    }
+
+    private void OpenNightInApexAstro(string? nightFolderPath)
+    {
+        if (string.IsNullOrWhiteSpace(nightFolderPath))
         {
-            'L' => 0,
-            'R' => 1,
-            'G' => 2,
-            'B' => 3,
-            'S' => 4,
-            'H' => 5,
-            'O' => 6,
-            _ => 99
-        };
+            StatusMessage = "Night folder path is missing.";
+            return;
+        }
+
+        var nightDirectoryPath = Path.GetFullPath(nightFolderPath);
+        var lightDirectoryPath = Path.Combine(nightDirectoryPath, "LIGHT");
+
+        if (!Directory.Exists(nightDirectoryPath))
+        {
+            StatusMessage = $"Night folder not found: {nightDirectoryPath}";
+            return;
+        }
+
+        if (!Directory.Exists(lightDirectoryPath))
+        {
+            StatusMessage = $"LIGHT folder not found: {lightDirectoryPath}";
+            return;
+        }
+
+        var normalizedLightDirectoryPath = Path.TrimEndingDirectorySeparator(lightDirectoryPath) + Path.DirectorySeparatorChar;
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "ApexAstro.exe",
+                WorkingDirectory = lightDirectoryPath,
+                UseShellExecute = true
+            };
+            startInfo.ArgumentList.Add(normalizedLightDirectoryPath);
+            Process.Start(startInfo);
+            StatusMessage = $"Opened in ApexAstro: {normalizedLightDirectoryPath}";
+            return;
+        }
+        catch
+        {
+            // Try non-extension executable name as a fallback.
+        }
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "ApexAstro",
+                WorkingDirectory = lightDirectoryPath,
+                UseShellExecute = true
+            };
+            startInfo.ArgumentList.Add(normalizedLightDirectoryPath);
+            Process.Start(startInfo);
+            StatusMessage = $"Opened in ApexAstro: {normalizedLightDirectoryPath}";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Could not open ApexAstro: {ex.Message}";
+        }
     }
 }

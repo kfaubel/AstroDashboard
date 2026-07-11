@@ -122,7 +122,7 @@ public class DirectoryScanner
                     foreach (var fitsFile in fitsFiles)
                     {
                         var fileName = Path.GetFileName(fitsFile);
-                        var parsed = ParseFitsFileName(fileName);
+                        var parsed = ParseFitsFileName(fileName, nightDir);
                         
                         if (parsed != null)
                         {
@@ -144,7 +144,7 @@ public class DirectoryScanner
         return results;
     }
 
-    private AstronomyData? ParseFitsFileName(string fileName)
+    private AstronomyData? ParseFitsFileName(string fileName, string nightFolderPath)
     {
         var match = FitsFilePattern.Match(fileName);
         
@@ -181,6 +181,7 @@ public class DirectoryScanner
         return new AstronomyData
         {
             FileName = fileName,
+            NightFolderPath = nightFolderPath,
             Date = date,
             Filter = filter,
             ExposureSeconds = exposure,

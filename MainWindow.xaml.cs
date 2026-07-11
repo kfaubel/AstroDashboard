@@ -133,6 +133,32 @@ public class DepthToNumericColumnMarginConverter : IValueConverter
 }
 
 /// <summary>
+/// Converts a node type to Visibility when it matches the converter parameter.
+/// </summary>
+public class NodeTypeToVisibilityConverter : IValueConverter
+{
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        var nodeType = value as string;
+        var targetNodeType = parameter as string;
+
+        if (!string.IsNullOrWhiteSpace(nodeType) &&
+            !string.IsNullOrWhiteSpace(targetNodeType) &&
+            string.Equals(nodeType, targetNodeType, StringComparison.OrdinalIgnoreCase))
+        {
+            return Visibility.Visible;
+        }
+
+        return Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
 /// Converts a boolean to Visibility (Visible if true, Collapsed if false)
 /// </summary>
 public class BoolToVisibilityConverter : IValueConverter
