@@ -115,15 +115,25 @@ public class NodeTypeToFontWeightConverter : IValueConverter
 }
 
 /// <summary>
-/// Offsets numeric columns to compensate for default TreeView indentation at deeper levels.
+/// Applies TreeView depth offsets for row-level indent cancellation and name-cell indentation.
 /// </summary>
 public class DepthToNumericColumnMarginConverter : IValueConverter
 {
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         var depth = value is int d ? d : 0;
-        var leftOffset = 8 - (depth * 36);
-        return new Thickness(leftOffset, 2, 8, 2);
+        // TreeView indents children by roughly one toggle-width per level.
+        var indent = depth * 19;
+        var mode = (parameter as string) ?? string.Empty;
+
+        return mode switch
+        {
+            // Pull the whole row back left by depth so non-name columns remain globally aligned.
+            "Row" => new Thickness(-indent, 1, 0, 1),
+            // Reapply indent only to the name column so hierarchy remains visible.
+            "Name" => new Thickness(indent, 2, 8, 2),
+            _ => new Thickness(8, 2, 8, 2)
+        };
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

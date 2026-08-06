@@ -13,20 +13,23 @@ public class TreeNodeViewModel : BaseViewModel
     public string Name { get; }
     public string NodeType { get; } // "Telescope", "Project", "Night"
     public string? AssociatedData { get; }
+    public bool? Reviewed { get; }
+    public bool HasChildren => _children.Count > 0;
     public int Depth { get; private set; }
     public int? FileCount { get; }
     public double? TotalExposureMinutes { get; }
     public double? AverageRms { get; }
+    public double? MaxRms { get; }
     public double? AverageHfr { get; }
+    public double? MaxHfr { get; }
     public string FileCountText => FileCount.HasValue ? FileCount.Value.ToString(CultureInfo.InvariantCulture) : string.Empty;
     public string MinutesText => TotalExposureMinutes.HasValue
         ? FormatAsHoursMinutes(TotalExposureMinutes.Value)
         : string.Empty;
-    public string AverageRmsText => AverageRms.HasValue
-        ? AverageRms.Value.ToString("F2", CultureInfo.InvariantCulture)
-        : string.Empty;
-    public string AverageHfrText => AverageHfr.HasValue
-        ? AverageHfr.Value.ToString("F2", CultureInfo.InvariantCulture)
+    public string AverageRmsText => FormatAvgMax(AverageRms, MaxRms);
+    public string AverageHfrText => FormatAvgMax(AverageHfr, MaxHfr);
+    public string ReviewStatusText => NodeType == "Night"
+        ? (Reviewed == true ? "Reviewed" : "Not Reviewed")
         : string.Empty;
 
     private static string FormatAsHoursMinutes(double totalExposureMinutes)
@@ -35,6 +38,20 @@ public class TreeNodeViewModel : BaseViewModel
         var hours = totalMinutes / 60;
         var minutes = totalMinutes % 60;
         return string.Format(CultureInfo.InvariantCulture, "{0:D2}:{1:D2}", hours, minutes);
+    }
+
+    private static string FormatAvgMax(double? average, double? max)
+    {
+        if (!average.HasValue || !max.HasValue)
+        {
+            return string.Empty;
+        }
+
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            "{0:F2}/{1:F2}",
+            average.Value,
+            max.Value);
     }
 
     public bool IsExpanded
@@ -59,20 +76,26 @@ public class TreeNodeViewModel : BaseViewModel
         string name,
         string nodeType,
         string? associatedData = null,
+        bool? reviewed = null,
         int depth = 0,
         int? fileCount = null,
         double? totalExposureMinutes = null,
         double? averageRms = null,
-        double? averageHfr = null)
+        double? averageHfr = null,
+        double? maxRms = null,
+        double? maxHfr = null)
     {
         Name = name;
         NodeType = nodeType;
         AssociatedData = associatedData;
+        Reviewed = reviewed;
         Depth = depth;
         FileCount = fileCount;
         TotalExposureMinutes = totalExposureMinutes;
         AverageRms = averageRms;
+        MaxRms = maxRms;
         AverageHfr = averageHfr;
+        MaxHfr = maxHfr;
         _children = new ObservableCollection<TreeNodeViewModel>();
         _isExpanded = false;
         _isSelected = false;
@@ -80,19 +103,34 @@ public class TreeNodeViewModel : BaseViewModel
 
     public void AddChild(TreeNodeViewModel child)
     {
-        child.Depth = Depth + 1;
+        child.SetDepthRecursive(Depth + 1);
         Children.Add(child);
+        OnPropertyChanged(nameof(HasChildren));
+    }
+
+    private void SetDepthRecursive(int depth)
+    {
+        Depth = depth;
+        foreach (var nestedChild in Children)
+        {
+            nestedChild.SetDepthRecursive(depth + 1);
+        }
     }
 }
 
 public class BaseViewModel : INotifyPropertyChanged
 {
+    protected void OnPropertyChanged([System.Runtime.CompilerServices.CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
     protected void SetProperty<T>(ref T field, T value, [System.Runtime.CompilerServices.CallerMemberName] string? propertyName = null)
     {
         if (!EqualityComparer<T>.Default.Equals(field, value))
         {
             field = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            OnPropertyChanged(propertyName);
         }
     }
 

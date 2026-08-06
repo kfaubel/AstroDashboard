@@ -3,19 +3,23 @@ using System.Collections.ObjectModel;
 using System.Windows.Input;
 using System.IO;
 using System.Diagnostics;
+using System.Text.Json;
 
 namespace AstroDashboard.ViewModels;
 
 public class MainViewModel : BaseViewModel
 {
     private static readonly char[] FilterDisplayOrder = ['L', 'R', 'G', 'B', 'S', 'H', 'O'];
+    private const string ApexAstroReviewedFileName = ".apexastro.reviewed.json";
 
     private readonly DirectoryScanner _scanner;
     private readonly PathStateService _pathStateService;
     private ObservableCollection<TreeNodeViewModel> _treeNodes;
+    private ObservableCollection<TreeNodeViewModel> _visibleTreeNodes;
     private string _statusMessage;
     private ICommand? _browseCommand;
     private ICommand? _openNightInApexAstroCommand;
+    private ICommand? _toggleNodeExpansionCommand;
     private string _selectedPath;
     private List<DirectoryScanner.ProjectData> _allProjects;
 
@@ -31,6 +35,12 @@ public class MainViewModel : BaseViewModel
         set => SetProperty(ref _statusMessage, value);
     }
 
+    public ObservableCollection<TreeNodeViewModel> VisibleTreeNodes
+    {
+        get => _visibleTreeNodes;
+        set => SetProperty(ref _visibleTreeNodes, value);
+    }
+
     public string SelectedPath
     {
         get => _selectedPath;
@@ -38,6 +48,9 @@ public class MainViewModel : BaseViewModel
     }
 
     public ICommand BrowseCommand => _browseCommand ??= new RelayCommand(_ => BrowseForDirectory());
+    public ICommand ToggleNodeExpansionCommand => _toggleNodeExpansionCommand ??= new RelayCommand(
+        node => ToggleNodeExpansion(node as TreeNodeViewModel),
+        node => node is TreeNodeViewModel);
     public ICommand OpenNightInApexAstroCommand => _openNightInApexAstroCommand ??= new RelayCommand(
         path => OpenNightInApexAstro(path as string),
         path => path is string p && !string.IsNullOrWhiteSpace(p));
@@ -48,6 +61,7 @@ public class MainViewModel : BaseViewModel
         _scanner = new DirectoryScanner();
         _pathStateService = new PathStateService();
         _treeNodes = new ObservableCollection<TreeNodeViewModel>();
+        _visibleTreeNodes = new ObservableCollection<TreeNodeViewModel>();
         _statusMessage = "Ready";
         _selectedPath = string.Empty;
         _allProjects = new List<DirectoryScanner.ProjectData>();
@@ -98,6 +112,7 @@ public class MainViewModel : BaseViewModel
             {
                 StatusMessage = "No astrophotography data found.";
                 TreeNodes.Clear();
+                VisibleTreeNodes.Clear();
                 return;
             }
 
@@ -108,6 +123,7 @@ public class MainViewModel : BaseViewModel
         {
             StatusMessage = $"Error: {ex.Message}";
             TreeNodes.Clear();
+            VisibleTreeNodes.Clear();
         }
     }
 
@@ -136,7 +152,9 @@ public class MainViewModel : BaseViewModel
                     fileCount: projectFiles.Count,
                     totalExposureMinutes: projectFiles.Sum(f => f.ExposureMinutes),
                     averageRms: projectFiles.Any() ? projectFiles.Average(f => f.Rms) : null,
-                    averageHfr: projectFiles.Any() ? projectFiles.Average(f => f.Hfr) : null);
+                    averageHfr: projectFiles.Any() ? projectFiles.Average(f => f.Hfr) : null,
+                    maxRms: projectFiles.Any() ? projectFiles.Max(f => f.Rms) : null,
+                    maxHfr: projectFiles.Any() ? projectFiles.Max(f => f.Hfr) : null);
                 projectNode.IsExpanded = false;
 
                 // Add project-level filter summary rows first.
@@ -149,7 +167,9 @@ public class MainViewModel : BaseViewModel
                         fileCount: filterFiles.Count,
                         totalExposureMinutes: filterFiles.Sum(f => f.ExposureMinutes),
                         averageRms: filterFiles.Any() ? filterFiles.Average(f => f.Rms) : null,
-                        averageHfr: filterFiles.Any() ? filterFiles.Average(f => f.Hfr) : null);
+                        averageHfr: filterFiles.Any() ? filterFiles.Average(f => f.Hfr) : null,
+                        maxRms: filterFiles.Any() ? filterFiles.Max(f => f.Rms) : null,
+                        maxHfr: filterFiles.Any() ? filterFiles.Max(f => f.Hfr) : null);
                     projectNode.AddChild(filterSummaryNode);
                 }
 
@@ -162,14 +182,18 @@ public class MainViewModel : BaseViewModel
                 {
                     var nightFolderPath = nightGroup.Key;
                     var nightFolderName = Path.GetFileName(nightFolderPath);
+                    var isReviewed = IsNightReviewed(nightFolderPath);
                     var nightNode = new TreeNodeViewModel(
                         nightFolderName,
                         "Night",
                         associatedData: nightFolderPath,
+                        reviewed: isReviewed,
                         fileCount: nightGroup.Count(),
                         totalExposureMinutes: nightGroup.Sum(f => f.ExposureMinutes),
                         averageRms: nightGroup.Average(f => f.Rms),
-                        averageHfr: nightGroup.Average(f => f.Hfr));
+                        averageHfr: nightGroup.Average(f => f.Hfr),
+                        maxRms: nightGroup.Max(f => f.Rms),
+                        maxHfr: nightGroup.Max(f => f.Hfr));
 
                     var filterGroups = nightGroup
                         .GroupBy(f => f.Filter)
@@ -183,7 +207,9 @@ public class MainViewModel : BaseViewModel
                             fileCount: filterGroup.Count(),
                             totalExposureMinutes: filterGroup.Sum(f => f.ExposureMinutes),
                             averageRms: filterGroup.Average(f => f.Rms),
-                            averageHfr: filterGroup.Average(f => f.Hfr));
+                            averageHfr: filterGroup.Average(f => f.Hfr),
+                            maxRms: filterGroup.Max(f => f.Rms),
+                            maxHfr: filterGroup.Max(f => f.Hfr));
                         nightNode.AddChild(filterNode);
                     }
 
@@ -195,12 +221,165 @@ public class MainViewModel : BaseViewModel
 
             TreeNodes.Add(telescopeNode);
         }
+
+        RefreshVisibleTreeNodes();
+    }
+
+    private void ToggleNodeExpansion(TreeNodeViewModel? node)
+    {
+        if (node == null || !node.HasChildren)
+        {
+            return;
+        }
+
+        node.IsExpanded = !node.IsExpanded;
+        RefreshVisibleTreeNodes();
+    }
+
+    private void RefreshVisibleTreeNodes()
+    {
+        VisibleTreeNodes.Clear();
+
+        foreach (var rootNode in TreeNodes)
+        {
+            AddVisibleNodeRecursive(rootNode);
+        }
+    }
+
+    private void AddVisibleNodeRecursive(TreeNodeViewModel node)
+    {
+        VisibleTreeNodes.Add(node);
+
+        if (!node.IsExpanded)
+        {
+            return;
+        }
+
+        foreach (var child in node.Children)
+        {
+            AddVisibleNodeRecursive(child);
+        }
     }
 
     private static int GetFilterSortOrder(char filter)
     {
         var index = Array.IndexOf(FilterDisplayOrder, filter);
         return index >= 0 ? index : 99;
+    }
+
+    private static bool IsNightReviewed(string nightFolderPath)
+    {
+        var markerPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            Path.Combine(nightFolderPath, ApexAstroReviewedFileName),
+            Path.Combine(nightFolderPath, "LIGHT", ApexAstroReviewedFileName)
+        };
+
+        var parentPath = Path.GetDirectoryName(nightFolderPath);
+        if (!string.IsNullOrWhiteSpace(parentPath))
+        {
+            markerPaths.Add(Path.Combine(parentPath, ApexAstroReviewedFileName));
+        }
+
+        try
+        {
+            if (Directory.Exists(nightFolderPath))
+            {
+                foreach (var nestedMarkerPath in Directory.EnumerateFiles(
+                             nightFolderPath,
+                             ApexAstroReviewedFileName,
+                             SearchOption.AllDirectories))
+                {
+                    markerPaths.Add(nestedMarkerPath);
+                }
+            }
+        }
+        catch (IOException)
+        {
+            // Ignore recursive scan failures and continue with direct candidates.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Ignore recursive scan failures and continue with direct candidates.
+        }
+
+        foreach (var markerPath in markerPaths)
+        {
+            if (TryGetReviewedValue(markerPath, out var reviewed))
+            {
+                return reviewed;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryGetReviewedValue(string markerPath, out bool reviewed)
+    {
+        reviewed = false;
+
+        if (!File.Exists(markerPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(markerPath);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return false;
+            }
+
+            using var document = JsonDocument.Parse(json);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return false;
+            }
+
+            foreach (var property in document.RootElement.EnumerateObject())
+            {
+                if (!property.Name.Equals("Reviewed", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (property.Value.ValueKind == JsonValueKind.True)
+                {
+                    reviewed = true;
+                    return true;
+                }
+
+                if (property.Value.ValueKind == JsonValueKind.False)
+                {
+                    reviewed = false;
+                    return true;
+                }
+
+                if (property.Value.ValueKind == JsonValueKind.String
+                    && bool.TryParse(property.Value.GetString(), out var parsed))
+                {
+                    reviewed = parsed;
+                    return true;
+                }
+
+                return false;
+            }
+
+            return false;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     private void OpenNightInApexAstro(string? nightFolderPath)
