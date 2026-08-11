@@ -5,6 +5,7 @@ namespace AstroDashboard.Services;
 public class PathStateService
 {
     private readonly string _stateFilePath;
+    private readonly string _darkModeStateFilePath;
 
     public PathStateService()
     {
@@ -12,6 +13,7 @@ public class PathStateService
         var appFolder = Path.Combine(appData, "AstroDashboard");
         Directory.CreateDirectory(appFolder);
         _stateFilePath = Path.Combine(appFolder, "last-path.txt");
+        _darkModeStateFilePath = Path.Combine(appFolder, "dark-mode.txt");
     }
 
     public string? GetLastPath()
@@ -40,6 +42,41 @@ public class PathStateService
             {
                 File.WriteAllText(_stateFilePath, path);
             }
+        }
+        catch
+        {
+            // Ignore state persistence errors.
+        }
+    }
+
+    public bool? GetDarkModePreference()
+    {
+        try
+        {
+            if (!File.Exists(_darkModeStateFilePath))
+            {
+                return null;
+            }
+
+            var value = File.ReadAllText(_darkModeStateFilePath).Trim();
+            if (bool.TryParse(value, out var isDarkMode))
+            {
+                return isDarkMode;
+            }
+        }
+        catch
+        {
+            // Ignore state persistence errors.
+        }
+
+        return null;
+    }
+
+    public void SaveDarkModePreference(bool isDarkMode)
+    {
+        try
+        {
+            File.WriteAllText(_darkModeStateFilePath, isDarkMode.ToString());
         }
         catch
         {

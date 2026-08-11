@@ -1,54 +1,27 @@
-using System.Runtime.InteropServices;
+using System.IO;
+using System.Windows.Forms;
 
 namespace AstroDashboard.Services;
 
 public static class FolderDialog
 {
-    [DllImport("shell32.dll", CharSet = CharSet.Auto)]
-    private static extern IntPtr SHBrowseForFolder(ref BROWSEINFO browseInfo);
-
-    [DllImport("shell32.dll", CharSet = CharSet.Auto)]
-    private static extern bool SHGetPathFromIDList(IntPtr pidl, [Out] char[] pszPath);
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct BROWSEINFO
-    {
-        public IntPtr hwndOwner;
-        public IntPtr pidlRoot;
-        public string pszDisplayName;
-        public string lpszTitle;
-        public uint ulFlags;
-        public IntPtr lpfn;
-        public IntPtr lParam;
-        public int iImage;
-    }
-
     public static string? SelectFolder(string title, string? initialPath = null)
     {
-        BROWSEINFO browseInfo = new()
+        using var dialog = new FolderBrowserDialog
         {
-            lpszTitle = title,
-            ulFlags = 0x0040, // BIF_NEWDIALOGSTYLE
-            pszDisplayName = new string(' ', 260)
+            Description = title,
+            ShowNewFolderButton = true,
+            UseDescriptionForTitle = true
         };
 
-        IntPtr pidl = SHBrowseForFolder(ref browseInfo);
-        if (pidl != IntPtr.Zero)
+        if (!string.IsNullOrWhiteSpace(initialPath) && Directory.Exists(initialPath))
         {
-            try
-            {
-                char[] path = new char[260];
-                if (SHGetPathFromIDList(pidl, path))
-                {
-                    return new string(path).TrimEnd('\0');
-                }
-            }
-            finally
-            {
-                Marshal.FreeCoTaskMem(pidl);
-            }
+            dialog.InitialDirectory = initialPath;
+            dialog.SelectedPath = initialPath;
         }
 
-        return null;
+        return dialog.ShowDialog() == DialogResult.OK
+            ? dialog.SelectedPath
+            : null;
     }
 }

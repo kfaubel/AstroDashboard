@@ -22,12 +22,16 @@ public class TreeNodeViewModel : BaseViewModel
     public double? MaxRms { get; }
     public double? AverageHfr { get; }
     public double? MaxHfr { get; }
+    public double? Snr { get; }
     public string FileCountText => FileCount.HasValue ? FileCount.Value.ToString(CultureInfo.InvariantCulture) : string.Empty;
     public string MinutesText => TotalExposureMinutes.HasValue
         ? FormatAsHoursMinutes(TotalExposureMinutes.Value)
         : string.Empty;
     public string AverageRmsText => FormatAvgMax(AverageRms, MaxRms);
     public string AverageHfrText => FormatAvgMax(AverageHfr, MaxHfr);
+    public string SnrText => Snr.HasValue
+        ? Math.Round(Snr.Value, 0, MidpointRounding.AwayFromZero).ToString(CultureInfo.InvariantCulture)
+        : (NodeType == "Filter" ? "n/a" : string.Empty);
     public string ReviewStatusText => NodeType == "Night"
         ? (Reviewed == true ? "Reviewed" : "Not Reviewed")
         : string.Empty;
@@ -82,6 +86,7 @@ public class TreeNodeViewModel : BaseViewModel
         double? totalExposureMinutes = null,
         double? averageRms = null,
         double? averageHfr = null,
+        double? snr = null,
         double? maxRms = null,
         double? maxHfr = null)
     {
@@ -96,6 +101,7 @@ public class TreeNodeViewModel : BaseViewModel
         MaxRms = maxRms;
         AverageHfr = averageHfr;
         MaxHfr = maxHfr;
+        Snr = snr;
         _children = new ObservableCollection<TreeNodeViewModel>();
         _isExpanded = false;
         _isSelected = false;

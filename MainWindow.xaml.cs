@@ -3,6 +3,7 @@ using AstroDashboard.Services;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
+using Application = System.Windows.Application;
 
 namespace AstroDashboard;
 
@@ -10,6 +11,8 @@ public partial class MainWindow : Window
 {
     public MainWindow()
     {
+        var pathStateService = new PathStateService();
+        MainViewModel.ApplyThemeResources(MainViewModel.GetPreferredDarkMode(pathStateService));
         InitializeComponent();
         
         var viewModel = new MainViewModel();
@@ -19,7 +22,7 @@ public partial class MainWindow : Window
         var initialPath = Application.Current.Properties["InitialPath"] as string;
         if (string.IsNullOrEmpty(initialPath))
         {
-            initialPath = new PathStateService().GetLastPath() ?? Environment.CurrentDirectory;
+            initialPath = pathStateService.GetLastPath() ?? Environment.CurrentDirectory;
         }
         
         viewModel.LoadInitialPath(initialPath);
@@ -75,16 +78,23 @@ public class NodeTypeColorConverter : IValueConverter
     {
         if (value is string nodeType)
         {
-            return nodeType switch
+            var resourceKey = nodeType switch
             {
-                "Telescope" => new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0, 102, 204)), // Blue
-                "Project" => new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0, 153, 76)), // Green
-                "Filter" => new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(184, 92, 0)), // Orange
-                "Night" => new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(80, 80, 80)), // Gray
-                _ => System.Windows.Media.Brushes.Black
+                "Telescope" => "NodeTypeTelescopeBrush",
+                "Project" => "NodeTypeProjectBrush",
+                "Filter" => "NodeTypeFilterBrush",
+                "Night" => "NodeTypeNightBrush",
+                _ => "PrimaryTextBrush"
             };
+
+            if (Application.Current.TryFindResource(resourceKey) is System.Windows.Media.Brush brush)
+            {
+                return brush;
+            }
         }
-        return System.Windows.Media.Brushes.Black;
+
+        return Application.Current.TryFindResource("PrimaryTextBrush") as System.Windows.Media.Brush
+            ?? System.Windows.Media.Brushes.Black;
     }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)

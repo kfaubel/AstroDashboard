@@ -8,13 +8,31 @@
         Title="Astrophotography Dashboard" Height="750" Width="1200"
         WindowStartupLocation="CenterScreen">
     <Window.Resources>
-        <local:NodeTypeColorConverter x:Key="NodeTypeColorConverter"/>
         <local:NodeTypeToFontWeightConverter x:Key="NodeTypeToFontWeightConverter"/>
         <local:DepthToNumericColumnMarginConverter x:Key="DepthToNumericColumnMarginConverter"/>
         <local:NodeTypeToVisibilityConverter x:Key="NodeTypeToVisibilityConverter"/>
         <local:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <Style x:Key="NodeNameTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource PrimaryTextBrush}"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding NodeType}" Value="Telescope">
+                    <Setter Property="Foreground" Value="{DynamicResource NodeTypeTelescopeBrush}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="Project">
+                    <Setter Property="Foreground" Value="{DynamicResource NodeTypeProjectBrush}"/>
+                    <Setter Property="FontWeight" Value="Bold"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="Filter">
+                    <Setter Property="Foreground" Value="{DynamicResource NodeTypeFilterBrush}"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding NodeType}" Value="Night">
+                    <Setter Property="Foreground" Value="{DynamicResource NodeTypeNightBrush}"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
-    <Grid Background="#F0F0F0">
+    <Grid Background="{DynamicResource WindowBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -22,55 +40,82 @@
         </Grid.RowDefinitions>
 
         <!-- Toolbar -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="10" Background="White">
-            <Button Command="{Binding BrowseCommand}" Padding="10,5" Margin="0,0,5,0" Background="#0078D4" Foreground="White" FontWeight="Bold">
-                Browse...
-            </Button>
-            <TextBox Text="{Binding SelectedPath, Mode=TwoWay}" Padding="5" Width="300" VerticalAlignment="Center" Margin="0,0,10,0"/>
-            <Button Command="{Binding RefreshCommand}" Padding="10,5" Margin="0,0,10,0" Background="#0078D4" Foreground="White" FontWeight="Bold">
-                Refresh
-            </Button>
-        </StackPanel>
+        <Grid Grid.Row="0" Margin="10" Background="{DynamicResource SurfaceBrush}">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <Button Command="{Binding BrowseCommand}" Padding="10,5" Margin="0,0,5,0" Background="{DynamicResource PrimaryButtonBackgroundBrush}" Foreground="{DynamicResource PrimaryButtonForegroundBrush}" FontWeight="Bold">
+                    Browse...
+                </Button>
+                <TextBox Text="{Binding SelectedPath, Mode=TwoWay}"
+                         Padding="5"
+                         Width="300"
+                         VerticalAlignment="Center"
+                         Margin="0,0,10,0"
+                         Background="{DynamicResource ComboBoxBackgroundBrush}"
+                         BorderBrush="{DynamicResource ComboBoxBorderBrush}"
+                         Foreground="{DynamicResource ComboBoxForegroundBrush}"/>
+                <Button Command="{Binding RefreshCommand}" Padding="10,5" Margin="0,0,10,0" Background="{DynamicResource PrimaryButtonBackgroundBrush}" Foreground="{DynamicResource PrimaryButtonForegroundBrush}" FontWeight="Bold">
+                    Refresh
+                </Button>
+            </StackPanel>
+
+            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                <Button Command="{Binding CalculateSnrCommand}" Padding="10,5" Margin="0,0,10,0" Background="{DynamicResource PrimaryButtonBackgroundBrush}" Foreground="{DynamicResource PrimaryButtonForegroundBrush}" FontWeight="Bold" HorizontalAlignment="Right">
+                    Calculate SNR
+                </Button>
+                <CheckBox Content="Dark mode"
+                          IsChecked="{Binding IsDarkModeEnabled, Mode=TwoWay}"
+                          VerticalAlignment="Center"
+                          Foreground="{DynamicResource PrimaryTextBrush}"/>
+            </StackPanel>
+        </Grid>
 
         <!-- Main Content -->
-        <Border Grid.Row="1" Margin="10" Background="White" BorderBrush="#D0D0D0" BorderThickness="1">
-            <Grid TextElement.FontSize="14">
+        <Border Grid.Row="1" Margin="10" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+            <Grid TextElement.FontSize="14" TextElement.Foreground="{DynamicResource PrimaryTextBrush}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" Text="Projects Summary" Padding="10" FontWeight="Bold" Background="#E8E8E8"/>
+                <TextBlock Grid.Row="0" Text="Projects Summary" Padding="10" FontWeight="Bold" Background="{DynamicResource SectionHeaderBrush}" Foreground="{DynamicResource PrimaryTextBrush}"/>
 
-                <Grid Grid.Row="1" Background="#F7F7F7" Margin="0,0,0,1">
+                <Grid Grid.Row="1" Background="{DynamicResource ColumnHeaderBrush}" Margin="0,0,0,1">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="280"/>
-                        <ColumnDefinition Width="100"/>
-                        <ColumnDefinition Width="100"/>
-                        <ColumnDefinition Width="110"/>
-                        <ColumnDefinition Width="110"/>
-                        <ColumnDefinition Width="190"/>
+                        <ColumnDefinition Width="270"/>
+                        <ColumnDefinition Width="78"/>
+                        <ColumnDefinition Width="82"/>
+                        <ColumnDefinition Width="106"/>
+                        <ColumnDefinition Width="106"/>
+                        <ColumnDefinition Width="58"/>
+                        <ColumnDefinition Width="210"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="Name" FontWeight="SemiBold" Margin="0,6,8,6" VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="1" Text="Files" FontWeight="SemiBold" Margin="8,6,8,6" TextAlignment="Right" VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="2" Text="HH:MM" FontWeight="SemiBold" Margin="8,6,8,6" TextAlignment="Right" VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="3" Text="Avg/Max RMS" FontWeight="SemiBold" Margin="8,6,8,6" TextAlignment="Right" VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="4" Text="Avg/Max HFR" FontWeight="SemiBold" Margin="8,6,8,6" TextAlignment="Right" VerticalAlignment="Center"/>
-                    <TextBlock Grid.Column="5" Text="Review Status" FontWeight="SemiBold" Margin="8,6,4,6" VerticalAlignment="Center"/>
-                    <Border Grid.Column="0" BorderBrush="#DADADA" BorderThickness="0,0,1,0"/>
-                    <Border Grid.Column="1" BorderBrush="#DADADA" BorderThickness="0,0,1,0"/>
-                    <Border Grid.Column="2" BorderBrush="#DADADA" BorderThickness="0,0,1,0"/>
-                    <Border Grid.Column="3" BorderBrush="#DADADA" BorderThickness="0,0,1,0"/>
-                    <Border Grid.Column="4" BorderBrush="#DADADA" BorderThickness="0,0,1,0"/>
-                    <Border Grid.Column="5" BorderBrush="#DADADA" BorderThickness="0,0,1,0"/>
+                    <TextBlock Grid.Column="0" Text="Name" FontWeight="SemiBold" Margin="0,6,8,6" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" ToolTip="Telescope, project, filter, or night name."/>
+                    <TextBlock Grid.Column="1" Text="Files" FontWeight="SemiBold" Margin="8,6,8,6" TextAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" ToolTip="Number of FITS files included in this row."/>
+                    <TextBlock Grid.Column="2" Text="Time" FontWeight="SemiBold" Margin="8,6,8,6" TextAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" ToolTip="Total exposure time in hours and minutes (HH:MM)."/>
+                    <TextBlock Grid.Column="3" Text="Avg/Max RMS" FontWeight="SemiBold" Margin="8,6,8,6" TextAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" ToolTip="Average RMS and maximum RMS for the files in this row."/>
+                    <TextBlock Grid.Column="4" Text="Avg/Max HFR" FontWeight="SemiBold" Margin="8,6,8,6" TextAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" ToolTip="Average HFR and maximum HFR for the files in this row."/>
+                    <TextBlock Grid.Column="5" Text="SNR" FontWeight="SemiBold" Margin="8,6,8,6" TextAlignment="Right" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" ToolTip="Signal-to-noise ratio when available."/>
+                    <TextBlock Grid.Column="6" Text="Status" FontWeight="SemiBold" Margin="8,6,4,6" VerticalAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" ToolTip="Night review status and action to open the folder in ApexAstro."/>
+                    <Border Grid.Column="0" BorderBrush="{DynamicResource ColumnDividerBrush}" BorderThickness="0,0,1,0"/>
+                    <Border Grid.Column="1" BorderBrush="{DynamicResource ColumnDividerBrush}" BorderThickness="0,0,1,0"/>
+                    <Border Grid.Column="2" BorderBrush="{DynamicResource ColumnDividerBrush}" BorderThickness="0,0,1,0"/>
+                    <Border Grid.Column="3" BorderBrush="{DynamicResource ColumnDividerBrush}" BorderThickness="0,0,1,0"/>
+                    <Border Grid.Column="4" BorderBrush="{DynamicResource ColumnDividerBrush}" BorderThickness="0,0,1,0"/>
+                    <Border Grid.Column="5" BorderBrush="{DynamicResource ColumnDividerBrush}" BorderThickness="0,0,1,0"/>
+                    <Border Grid.Column="6" BorderBrush="{DynamicResource ColumnDividerBrush}" BorderThickness="0,0,1,0"/>
                 </Grid>
 
                 <ListBox Grid.Row="2"
                          ItemsSource="{Binding VisibleTreeNodes}"
                          BorderThickness="0"
-                         Background="White"
+                         Background="{DynamicResource SurfaceBrush}"
                          Padding="0"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          ScrollViewer.VerticalScrollBarVisibility="Auto">
@@ -87,100 +132,111 @@
                         <DataTemplate>
                             <Grid Margin="0,1" HorizontalAlignment="Stretch">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="280"/>
-                                    <ColumnDefinition Width="100"/>
-                                    <ColumnDefinition Width="100"/>
-                                    <ColumnDefinition Width="110"/>
-                                    <ColumnDefinition Width="110"/>
-                                    <ColumnDefinition Width="190"/>
+                                    <ColumnDefinition Width="270"/>
+                                    <ColumnDefinition Width="78"/>
+                                    <ColumnDefinition Width="82"/>
+                                    <ColumnDefinition Width="106"/>
+                                    <ColumnDefinition Width="106"/>
+                                    <ColumnDefinition Width="58"/>
+                                    <ColumnDefinition Width="210"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
 
                                 <StackPanel Grid.Column="0"
                                             Orientation="Horizontal"
                                             Margin="{Binding Depth, Converter={StaticResource DepthToNumericColumnMarginConverter}, ConverterParameter=Name}">
-                                    <Button Width="18"
-                                            Height="18"
+                                        <Button Width="22"
+                                            Height="22"
                                             Margin="0,0,4,0"
                                             Padding="0"
-                                            FontSize="12"
+                                            FontSize="16"
+                                            FontWeight="Bold"
                                             Focusable="False"
-                                            Content="▸"
+                                            Background="Transparent"
+                                            BorderBrush="Transparent"
+                                            BorderThickness="0"
                                             VerticalAlignment="Center"
                                             Command="{Binding DataContext.ToggleNodeExpansionCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                             CommandParameter="{Binding}">
                                         <Button.Style>
                                             <Style TargetType="Button">
-                                                <Setter Property="Background" Value="#F3F3F3"/>
-                                                <Setter Property="BorderBrush" Value="#CFCFCF"/>
-                                                <Setter Property="BorderThickness" Value="1"/>
+                                                <Setter Property="Content" Value="▶"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource SecondaryTextBrush}"/>
                                                 <Setter Property="Cursor" Value="Hand"/>
                                                 <Setter Property="IsHitTestVisible" Value="True"/>
+                                                <Setter Property="Visibility" Value="Visible"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding HasChildren}" Value="False">
-                                                        <Setter Property="Content" Value=""/>
-                                                        <Setter Property="BorderBrush" Value="Transparent"/>
-                                                        <Setter Property="Background" Value="Transparent"/>
-                                                        <Setter Property="Cursor" Value="Arrow"/>
-                                                        <Setter Property="IsHitTestVisible" Value="False"/>
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsExpanded}" Value="True">
-                                                        <Setter Property="Content" Value="▾"/>
+                                                        <Setter Property="Content" Value="▼"/>
                                                     </DataTrigger>
                                                     <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter Property="Background" Value="#E8E8E8"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource TreeGlyphHoverBrush}"/>
                                                     </Trigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Button.Style>
                                     </Button>
                                     <TextBlock Text="{Binding Name}"
-                                               Foreground="{Binding NodeType, Converter={StaticResource NodeTypeColorConverter}}"
-                                               FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}"
+                                               Style="{StaticResource NodeNameTextStyle}"
                                                VerticalAlignment="Center"/>
                                 </StackPanel>
 
-                                <TextBlock Grid.Column="1" Text="{Binding FileCountText}" Margin="8,2,8,2" TextAlignment="Right" FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}"/>
-                                <TextBlock Grid.Column="2" Text="{Binding MinutesText}" Margin="8,2,8,2" TextAlignment="Right" FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}"/>
-                                <TextBlock Grid.Column="3" Text="{Binding AverageRmsText}" Margin="8,2,8,2" TextAlignment="Right" FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}"/>
-                                <TextBlock Grid.Column="4" Text="{Binding AverageHfrText}" Margin="8,2,8,2" TextAlignment="Right" FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}"/>
-                                <StackPanel Grid.Column="5"
+                                <TextBlock Grid.Column="1" Text="{Binding FileCountText}" Margin="8,2,8,2" TextAlignment="Right" FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                <TextBlock Grid.Column="2" Text="{Binding MinutesText}" Margin="8,2,8,2" TextAlignment="Right" FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                <TextBlock Grid.Column="3" Text="{Binding AverageRmsText}" Margin="8,2,8,2" TextAlignment="Right" FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                <TextBlock Grid.Column="4" Text="{Binding AverageHfrText}" Margin="8,2,8,2" TextAlignment="Right" FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                <TextBlock Grid.Column="5" Text="{Binding SnrText}" Margin="8,2,8,2" TextAlignment="Right" FontWeight="{Binding NodeType, Converter={StaticResource NodeTypeToFontWeightConverter}}" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                <StackPanel Grid.Column="6"
                                             Orientation="Horizontal"
                                             Margin="8,2,4,2"
                                             VerticalAlignment="Center"
                                             Visibility="{Binding NodeType, Converter={StaticResource NodeTypeToVisibilityConverter}, ConverterParameter=Night}">
-                                    <Button Width="26"
-                                            Height="22"
-                                            Margin="0,0,4,0"
-                                            Padding="0"
-                                            HorizontalAlignment="Left"
-                                            VerticalAlignment="Center"
-                                            Content="🔎"
-                                            ToolTip="Open NIGHT folder in ApexAstro"
-                                            Command="{Binding DataContext.OpenNightInApexAstroCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                            CommandParameter="{Binding AssociatedData}"/>
                                     <TextBlock Text="{Binding ReviewStatusText}"
-                                               VerticalAlignment="Center">
+                                               VerticalAlignment="Center"
+                                               ToolTip="Right-click to toggle review status">
+                                        <TextBlock.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Toggle Reviewed"
+                                                          Command="{Binding DataContext.ToggleNightReviewCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                          CommandParameter="{Binding AssociatedData}"/>
+                                            </ContextMenu>
+                                        </TextBlock.ContextMenu>
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground" Value="Black"/>
+                                                <Setter Property="Foreground" Value="{DynamicResource ReviewStatusPendingBrush}"/>
                                                 <Setter Property="FontWeight" Value="Normal"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding Reviewed}" Value="True">
-                                                        <Setter Property="Foreground" Value="#1B7F2A"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource ReviewStatusReviewedBrush}"/>
                                                         <Setter Property="FontWeight" Value="Bold"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </TextBlock.Style>
                                     </TextBlock>
+                                    <Button Margin="8,0,0,0"
+                                            Padding="8,1"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Center"
+                                            Background="{DynamicResource ReviewActionBackgroundBrush}"
+                                            BorderBrush="{DynamicResource ReviewActionBorderBrush}"
+                                            Foreground="{DynamicResource ReviewActionForegroundBrush}"
+                                            FontWeight="SemiBold"
+                                            Content="Open"
+                                            ToolTip="Open NIGHT folder in ApexAstro"
+                                            Command="{Binding DataContext.OpenNightInApexAstroCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                            CommandParameter="{Binding AssociatedData}"/>
                                 </StackPanel>
-                                <Border Grid.Column="0" BorderBrush="#E7E7E7" BorderThickness="0,0,1,0"/>
-                                <Border Grid.Column="1" BorderBrush="#E7E7E7" BorderThickness="0,0,1,0"/>
-                                <Border Grid.Column="2" BorderBrush="#E7E7E7" BorderThickness="0,0,1,0"/>
-                                <Border Grid.Column="3" BorderBrush="#E7E7E7" BorderThickness="0,0,1,0"/>
-                                <Border Grid.Column="4" BorderBrush="#E7E7E7" BorderThickness="0,0,1,0"/>
-                                <Border Grid.Column="5" BorderBrush="#E7E7E7" BorderThickness="0,0,1,0"/>
+                                <Border Grid.Column="0" BorderBrush="{DynamicResource RowDividerBrush}" BorderThickness="0,0,1,0"/>
+                                <Border Grid.Column="1" BorderBrush="{DynamicResource RowDividerBrush}" BorderThickness="0,0,1,0"/>
+                                <Border Grid.Column="2" BorderBrush="{DynamicResource RowDividerBrush}" BorderThickness="0,0,1,0"/>
+                                <Border Grid.Column="3" BorderBrush="{DynamicResource RowDividerBrush}" BorderThickness="0,0,1,0"/>
+                                <Border Grid.Column="4" BorderBrush="{DynamicResource RowDividerBrush}" BorderThickness="0,0,1,0"/>
+                                <Border Grid.Column="5" BorderBrush="{DynamicResource RowDividerBrush}" BorderThickness="0,0,1,0"/>
+                                <Border Grid.Column="6" BorderBrush="{DynamicResource RowDividerBrush}" BorderThickness="0,0,1,0"/>
                             </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -189,9 +245,9 @@
         </Border>
 
         <!-- Status Bar -->
-        <StatusBar Grid.Row="2" Background="#F0F0F0" BorderBrush="#D0D0D0" BorderThickness="0,1,0,0">
+        <StatusBar Grid.Row="2" Background="{DynamicResource WindowBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0">
             <StatusBarItem>
-                <TextBlock Text="{Binding StatusMessage}" Margin="5"/>
+                <TextBlock Text="{Binding StatusMessage}" Margin="5" Foreground="{DynamicResource PrimaryTextBrush}"/>
             </StatusBarItem>
         </StatusBar>
     </Grid>
