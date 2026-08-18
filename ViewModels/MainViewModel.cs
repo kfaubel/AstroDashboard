@@ -736,6 +736,7 @@ public class MainViewModel : BaseViewModel
 
     private void BuildTreeStructure()
     {
+        var previouslyExpandedNodeKeys = CaptureExpandedNodeKeys(TreeNodes);
         TreeNodes.Clear();
         var telescopeGroups = _allProjects
             .GroupBy(p => p.TelescopeName)
@@ -892,7 +893,77 @@ public class MainViewModel : BaseViewModel
             TreeNodes.Add(telescopeNode);
         }
 
+        RestoreExpandedNodeState(TreeNodes, previouslyExpandedNodeKeys);
         RefreshVisibleTreeNodes();
+    }
+
+    private static HashSet<string> CaptureExpandedNodeKeys(IEnumerable<TreeNodeViewModel> nodes)
+    {
+        var expandedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var node in nodes)
+        {
+            CaptureExpandedNodeKeys(node, expandedKeys, new List<string>());
+        }
+
+        return expandedKeys;
+    }
+
+    private static void CaptureExpandedNodeKeys(TreeNodeViewModel node, HashSet<string> expandedKeys, List<string> ancestors)
+    {
+        var nodePath = new List<string>(ancestors)
+        {
+            GetNodeIdentity(node)
+        };
+
+        if (node.IsExpanded)
+        {
+            expandedKeys.Add(string.Join("/", nodePath));
+        }
+
+        foreach (var child in node.Children)
+        {
+            CaptureExpandedNodeKeys(child, expandedKeys, nodePath);
+        }
+    }
+
+    private static void RestoreExpandedNodeState(IEnumerable<TreeNodeViewModel> nodes, HashSet<string> expandedKeys)
+    {
+        foreach (var node in nodes)
+        {
+            RestoreExpandedNodeState(node, expandedKeys, new List<string>());
+        }
+    }
+
+    private static void RestoreExpandedNodeState(TreeNodeViewModel node, HashSet<string> expandedKeys, List<string> ancestors)
+    {
+        var nodePath = new List<string>(ancestors)
+        {
+            GetNodeIdentity(node)
+        };
+
+        if (expandedKeys.Contains(string.Join("/", nodePath)))
+        {
+            node.IsExpanded = true;
+        }
+        else if (node.NodeType == "Telescope")
+        {
+            node.IsExpanded = true;
+        }
+
+        foreach (var child in node.Children)
+        {
+            RestoreExpandedNodeState(child, expandedKeys, nodePath);
+        }
+    }
+
+    private static string GetNodeIdentity(TreeNodeViewModel node)
+    {
+        if (!string.IsNullOrWhiteSpace(node.AssociatedData))
+        {
+            return $"{node.NodeType}:{node.AssociatedData}";
+        }
+
+        return $"{node.NodeType}:{node.Name}";
     }
 
     private void ToggleNodeExpansion(TreeNodeViewModel? node)
@@ -1254,8 +1325,9 @@ public class MainViewModel : BaseViewModel
             return;
         }
 
+        var persistedReviewedValue = IsNightReviewed(normalizedNightFolderPath);
         BuildTreeStructure();
-        StatusMessage = $"Review status updated: {(newReviewedValue ? "Reviewed" : "Not Reviewed")}";
+        StatusMessage = $"Review status updated: {(persistedReviewedValue ? "Reviewed" : "Not Reviewed")} | Marker: {markerPath}";
     }
 
     private static string ResolveReviewMarkerPath(string nightFolderPath)
@@ -1268,7 +1340,7 @@ public class MainViewModel : BaseViewModel
             }
         }
 
-        return Path.Combine(nightFolderPath, ApexAstroReviewedFileName);
+        return Path.Combine(nightFolderPath, "LIGHT", ApexAstroReviewedFileName);
     }
 
     private static IEnumerable<string> GetReviewMarkerPathsInOrder(string nightFolderPath)
@@ -1278,6 +1350,7 @@ public class MainViewModel : BaseViewModel
 
         var candidateMarkerPaths = new[]
         {
+            Path.Combine(nightFolderPath, "LIGHT", ApexAstroReviewedFileName),
             Path.Combine(nightFolderPath, ApexAstroReviewedFileName),
             Path.Combine(nightFolderPath, "LIGHT", ApexAstroReviewedFileName)
         };
@@ -1334,6 +1407,16 @@ public class MainViewModel : BaseViewModel
 
         try
         {
+            if (!reviewed)
+            {
+                if (File.Exists(markerPath))
+                {
+                    File.Delete(markerPath);
+                }
+
+                return true;
+            }
+
             JsonObject root;
 
             if (File.Exists(markerPath))
