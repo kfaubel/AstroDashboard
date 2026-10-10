@@ -163,10 +163,16 @@ public class NodeTypeToVisibilityConverter : IValueConverter
         var targetNodeType = parameter as string;
 
         if (!string.IsNullOrWhiteSpace(nodeType) &&
-            !string.IsNullOrWhiteSpace(targetNodeType) &&
-            string.Equals(nodeType, targetNodeType, StringComparison.OrdinalIgnoreCase))
+            !string.IsNullOrWhiteSpace(targetNodeType))
         {
-            return Visibility.Visible;
+            var matches = targetNodeType
+                .Split(new[] { '|', ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Any(candidate => string.Equals(nodeType, candidate, StringComparison.OrdinalIgnoreCase));
+
+            if (matches)
+            {
+                return Visibility.Visible;
+            }
         }
 
         return Visibility.Collapsed;

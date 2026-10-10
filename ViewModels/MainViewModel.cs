@@ -13,7 +13,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 using System.Globalization;
+using System.Text;
 using Microsoft.Win32;
 using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
@@ -39,6 +41,9 @@ public class MainViewModel : BaseViewModel
     private bool _isDarkModeEnabled;
     private string _selectedPath;
     private List<DirectoryScanner.ProjectData> _allProjects;
+    private readonly DispatcherTimer _autoRefreshTimer;
+    private readonly SemaphoreSlim _refreshSemaphore;
+    private string _lastScanFingerprint;
 
     public ObservableCollection<TreeNodeViewModel> TreeNodes
     {
@@ -101,7 +106,15 @@ public class MainViewModel : BaseViewModel
         _isDarkModeEnabled = _pathStateService.GetDarkModePreference() ?? IsSystemDarkMode();
         _selectedPath = string.Empty;
         _allProjects = new List<DirectoryScanner.ProjectData>();
+        _refreshSemaphore = new SemaphoreSlim(1, 1);
+        _lastScanFingerprint = string.Empty;
         RefreshCommand = new RelayCommand(_ => RefreshCurrentPath());
+        _autoRefreshTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(15)
+        };
+        _autoRefreshTimer.Tick += async (_, _) => await AutoRefreshTickAsync();
+        _autoRefreshTimer.Start();
         ApplyThemeResources(_isDarkModeEnabled);
     }
 
@@ -224,7 +237,7 @@ public class MainViewModel : BaseViewModel
         if (!string.IsNullOrEmpty(path) && Directory.Exists(path))
         {
             SelectedPath = path;
-            ScanAndLoad(path);
+            RequestRefresh(forceRebuild: true, isAutoRefresh: false);
         }
     }
 
@@ -234,20 +247,88 @@ public class MainViewModel : BaseViewModel
         if (!string.IsNullOrEmpty(selectedPath) && Directory.Exists(selectedPath))
         {
             SelectedPath = selectedPath;
-            ScanAndLoad(selectedPath);
+            RequestRefresh(forceRebuild: true, isAutoRefresh: false);
         }
     }
 
     private void RefreshCurrentPath()
     {
-        // Refresh with the currently selected path
-        if (!string.IsNullOrEmpty(SelectedPath) && Directory.Exists(SelectedPath))
+        RequestRefresh(forceRebuild: true, isAutoRefresh: false);
+    }
+
+    private async Task AutoRefreshTickAsync()
+    {
+        await RefreshCurrentPathAsync(forceRebuild: false, isAutoRefresh: true);
+    }
+
+    private void RequestRefresh(bool forceRebuild, bool isAutoRefresh)
+    {
+        _ = RefreshCurrentPathAsync(forceRebuild, isAutoRefresh);
+    }
+
+    private async Task RefreshCurrentPathAsync(bool forceRebuild, bool isAutoRefresh)
+    {
+        if (string.IsNullOrWhiteSpace(SelectedPath) || !Directory.Exists(SelectedPath))
         {
-            ScanAndLoad(SelectedPath);
+            if (!isAutoRefresh)
+            {
+                StatusMessage = "Please enter a valid directory path";
+            }
+
+            return;
         }
-        else
+
+        var lockAcquired = isAutoRefresh
+            ? await _refreshSemaphore.WaitAsync(0)
+            : await _refreshSemaphore.WaitAsync(TimeSpan.FromSeconds(5));
+
+        if (!lockAcquired)
         {
-            StatusMessage = "Please enter a valid directory path";
+            return;
+        }
+
+        try
+        {
+            if (!isAutoRefresh)
+            {
+                StatusMessage = "Scanning directory...";
+            }
+
+            _pathStateService.SaveLastPath(SelectedPath);
+            var scannedProjects = await Task.Run(() => _scanner.ScanDirectory(SelectedPath));
+            var currentFingerprint = CreateScanFingerprint(scannedProjects);
+            var hasChanges = forceRebuild || !string.Equals(_lastScanFingerprint, currentFingerprint, StringComparison.Ordinal);
+
+            if (!hasChanges)
+            {
+                return;
+            }
+
+            _allProjects = scannedProjects;
+            _lastScanFingerprint = currentFingerprint;
+
+            if (_allProjects.Count == 0)
+            {
+                StatusMessage = "No astrophotography data found.";
+                TreeNodes.Clear();
+                VisibleTreeNodes.Clear();
+                return;
+            }
+
+            BuildTreeStructure();
+            StatusMessage = isAutoRefresh
+                ? $"Updated {_allProjects.Count} project(s) at {DateTime.Now:HH:mm:ss}"
+                : $"Loaded {_allProjects.Count} project(s)";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Error: {ex.Message}";
+            TreeNodes.Clear();
+            VisibleTreeNodes.Clear();
+        }
+        finally
+        {
+            _refreshSemaphore.Release();
         }
     }
 
@@ -707,30 +788,90 @@ public class MainViewModel : BaseViewModel
         return $"No output returned. Exit code: {process.ExitCode}";
     }
 
-    private void ScanAndLoad(string path)
+    private string CreateScanFingerprint(IEnumerable<DirectoryScanner.ProjectData> projects)
     {
+        var fingerprintBuilder = new StringBuilder();
+        var nightPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var project in projects
+            .OrderBy(p => p.TelescopeName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.ProjectName, StringComparer.OrdinalIgnoreCase))
+        {
+            fingerprintBuilder.Append(project.TelescopeName)
+                .Append('|')
+                .Append(project.ProjectName)
+                .Append('|')
+                .Append(project.Files.Count)
+                .AppendLine();
+
+            foreach (var file in project.Files
+                .OrderBy(f => f.NightFolderPath, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(f => f.FileName, StringComparer.OrdinalIgnoreCase))
+            {
+                fingerprintBuilder.Append(file.NightFolderPath)
+                    .Append('|')
+                    .Append(file.FileName)
+                    .Append('|')
+                    .Append(file.Date.ToString("O", CultureInfo.InvariantCulture))
+                    .Append('|')
+                    .Append(file.Filter)
+                    .Append('|')
+                    .Append(file.ExposureSeconds.ToString("G17", CultureInfo.InvariantCulture))
+                    .Append('|')
+                    .Append(file.Rms.ToString("G17", CultureInfo.InvariantCulture))
+                    .Append('|')
+                    .Append(file.Hfr.ToString("G17", CultureInfo.InvariantCulture))
+                    .AppendLine();
+
+                if (!string.IsNullOrWhiteSpace(file.NightFolderPath))
+                {
+                    nightPaths.Add(Path.GetFullPath(file.NightFolderPath));
+                }
+            }
+        }
+
+        foreach (var nightPath in nightPaths.OrderBy(path => path, StringComparer.OrdinalIgnoreCase))
+        {
+            AppendFileStateFingerprint(fingerprintBuilder, Path.Combine(nightPath, "LIGHT", ApexAstroReviewedFileName));
+            AppendFileStateFingerprint(fingerprintBuilder, Path.Combine(nightPath, ApexAstroReviewedFileName));
+            AppendFileStateFingerprint(fingerprintBuilder, Path.Combine(nightPath, "LIGHT", ApexAstroSnrFileName));
+
+            var parentPath = Path.GetDirectoryName(nightPath);
+            if (!string.IsNullOrWhiteSpace(parentPath))
+            {
+                AppendFileStateFingerprint(fingerprintBuilder, Path.Combine(parentPath, ApexAstroReviewedFileName));
+            }
+        }
+
+        return fingerprintBuilder.ToString();
+    }
+
+    private static void AppendFileStateFingerprint(StringBuilder fingerprintBuilder, string filePath)
+    {
+        var normalizedPath = Path.GetFullPath(filePath);
+        fingerprintBuilder.Append(normalizedPath).Append('|');
+
+        if (!File.Exists(normalizedPath))
+        {
+            fingerprintBuilder.AppendLine("missing");
+            return;
+        }
+
         try
         {
-            StatusMessage = "Scanning directory...";
-            _pathStateService.SaveLastPath(path);
-            _allProjects = _scanner.ScanDirectory(path);
-
-            if (_allProjects.Count == 0)
-            {
-                StatusMessage = "No astrophotography data found.";
-                TreeNodes.Clear();
-                VisibleTreeNodes.Clear();
-                return;
-            }
-
-            BuildTreeStructure();
-            StatusMessage = $"Loaded {_allProjects.Count} project(s)";
+            var fileInfo = new FileInfo(normalizedPath);
+            fingerprintBuilder.Append(fileInfo.Length)
+                .Append('|')
+                .Append(fileInfo.LastWriteTimeUtc.Ticks)
+                .AppendLine();
         }
-        catch (Exception ex)
+        catch (IOException)
         {
-            StatusMessage = $"Error: {ex.Message}";
-            TreeNodes.Clear();
-            VisibleTreeNodes.Clear();
+            fingerprintBuilder.AppendLine("io-error");
+        }
+        catch (UnauthorizedAccessException)
+        {
+            fingerprintBuilder.AppendLine("access-error");
         }
     }
 
@@ -758,17 +899,13 @@ public class MainViewModel : BaseViewModel
                 var projectFilterSubordinateCounts = new Dictionary<char, int>();
                 var nightNodes = new List<TreeNodeViewModel>();
                 var totalNightCount = 0;
+                var reviewedNightCount = 0;
                 var nightsWithSnrDataCount = 0;
-                var projectNode = new TreeNodeViewModel(
-                    projectGroup.Key,
-                    "Project",
-                    fileCount: projectFiles.Count,
-                    totalExposureMinutes: projectFiles.Sum(f => f.ExposureMinutes),
-                    averageRms: projectFiles.Any() ? projectFiles.Average(f => f.Rms) : null,
-                    averageHfr: projectFiles.Any() ? projectFiles.Average(f => f.Hfr) : null,
-                    maxRms: projectFiles.Any() ? projectFiles.Max(f => f.Rms) : null,
-                    maxHfr: projectFiles.Any() ? projectFiles.Max(f => f.Hfr) : null);
-                projectNode.IsExpanded = false;
+                var projectFolderPath = projectGroup
+                    .Select(p => p.ProjectFolderPath)
+                    .FirstOrDefault(path => !string.IsNullOrWhiteSpace(path))
+                    ?? string.Empty;
+                TreeNodeViewModel projectNode;
 
                 var nightFilterSnrByPath = BuildNightFilterSnrMap(projectFiles);
 
@@ -783,6 +920,10 @@ public class MainViewModel : BaseViewModel
                     var nightFolderPath = nightGroup.Key;
                     var nightFolderName = Path.GetFileName(nightFolderPath);
                     var isReviewed = IsNightReviewed(nightFolderPath);
+                    if (isReviewed)
+                    {
+                        reviewedNightCount++;
+                    }
                     if (nightFilterSnrByPath.TryGetValue(nightFolderPath, out var nightSnrData) && nightSnrData.Count > 0)
                     {
                         nightsWithSnrDataCount++;
@@ -849,7 +990,21 @@ public class MainViewModel : BaseViewModel
                     nightNodes.Add(nightNode);
                 }
 
-                // Add project-level filter summary rows first.
+                projectNode = new TreeNodeViewModel(
+                    projectGroup.Key,
+                    "Project",
+                    associatedData: projectFolderPath,
+                    fileCount: projectFiles.Count,
+                    totalExposureMinutes: projectFiles.Sum(f => f.ExposureMinutes),
+                    averageRms: projectFiles.Any() ? projectFiles.Average(f => f.Rms) : null,
+                    averageHfr: projectFiles.Any() ? projectFiles.Average(f => f.Hfr) : null,
+                    maxRms: projectFiles.Any() ? projectFiles.Max(f => f.Rms) : null,
+                    maxHfr: projectFiles.Any() ? projectFiles.Max(f => f.Hfr) : null,
+                    reviewedNightCount: reviewedNightCount,
+                    totalNightCount: totalNightCount);
+                projectNode.IsExpanded = false;
+
+                // Re-add project-level filter summary rows first.
                 foreach (var filter in FilterDisplayOrder)
                 {
                     var filterFiles = projectFiles.Where(f => f.Filter == filter).ToList();
@@ -1534,42 +1689,49 @@ public class MainViewModel : BaseViewModel
         }
     }
 
-    private void OpenNightInApexAstro(string? nightFolderPath)
+    private void OpenNightInApexAstro(string? targetPath)
     {
-        if (string.IsNullOrWhiteSpace(nightFolderPath))
+        if (string.IsNullOrWhiteSpace(targetPath))
         {
-            StatusMessage = "Night folder path is missing.";
+            StatusMessage = "Path is missing.";
             return;
         }
 
-        var nightDirectoryPath = Path.GetFullPath(nightFolderPath);
-        var lightDirectoryPath = Path.Combine(nightDirectoryPath, "LIGHT");
-
-        if (!Directory.Exists(nightDirectoryPath))
+        var normalizedPath = Path.GetFullPath(targetPath);
+        if (!Directory.Exists(normalizedPath))
         {
-            StatusMessage = $"Night folder not found: {nightDirectoryPath}";
+            StatusMessage = $"Folder not found: {normalizedPath}";
             return;
         }
 
-        if (!Directory.Exists(lightDirectoryPath))
+        string launchPath;
+        if (Directory.Exists(Path.Combine(normalizedPath, "Data")))
         {
-            StatusMessage = $"LIGHT folder not found: {lightDirectoryPath}";
+            launchPath = normalizedPath;
+        }
+        else if (Directory.Exists(Path.Combine(normalizedPath, "LIGHT")))
+        {
+            launchPath = normalizedPath;
+        }
+        else
+        {
+            StatusMessage = $"Expected a project folder (contains Data) or night folder (contains LIGHT): {normalizedPath}";
             return;
         }
 
-        var normalizedLightDirectoryPath = Path.TrimEndingDirectorySeparator(lightDirectoryPath) + Path.DirectorySeparatorChar;
+        var normalizedLaunchPath = Path.TrimEndingDirectorySeparator(launchPath) + Path.DirectorySeparatorChar;
 
         try
         {
             var startInfo = new ProcessStartInfo
             {
                 FileName = "ApexAstro.exe",
-                WorkingDirectory = lightDirectoryPath,
+                WorkingDirectory = launchPath,
                 UseShellExecute = true
             };
-            startInfo.ArgumentList.Add(normalizedLightDirectoryPath);
+            startInfo.ArgumentList.Add(normalizedLaunchPath);
             Process.Start(startInfo);
-            StatusMessage = $"Opened in ApexAstro: {normalizedLightDirectoryPath}";
+            StatusMessage = $"Opened in ApexAstro: {normalizedLaunchPath}";
             return;
         }
         catch
@@ -1582,12 +1744,12 @@ public class MainViewModel : BaseViewModel
             var startInfo = new ProcessStartInfo
             {
                 FileName = "ApexAstro",
-                WorkingDirectory = lightDirectoryPath,
+                WorkingDirectory = launchPath,
                 UseShellExecute = true
             };
-            startInfo.ArgumentList.Add(normalizedLightDirectoryPath);
+            startInfo.ArgumentList.Add(normalizedLaunchPath);
             Process.Start(startInfo);
-            StatusMessage = $"Opened in ApexAstro: {normalizedLightDirectoryPath}";
+            StatusMessage = $"Opened in ApexAstro: {normalizedLaunchPath}";
         }
         catch (Exception ex)
         {

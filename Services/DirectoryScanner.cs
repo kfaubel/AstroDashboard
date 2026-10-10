@@ -17,6 +17,7 @@ public class DirectoryScanner
     {
         public string TelescopeName { get; set; } = string.Empty;
         public string ProjectName { get; set; } = string.Empty;
+        public string ProjectFolderPath { get; set; } = string.Empty;
         public List<AstronomyData> Files { get; set; } = new();
     }
 
@@ -53,6 +54,7 @@ public class DirectoryScanner
                     {
                         TelescopeName = pathParts.Item1,
                         ProjectName = pathParts.Item2,
+                        ProjectFolderPath = projectPath,
                         Files = ScanDataFolder(dir)
                     };
 

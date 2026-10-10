@@ -204,9 +204,15 @@
                                             Orientation="Horizontal"
                                             Margin="8,2,4,2"
                                             VerticalAlignment="Center"
-                                            Visibility="{Binding NodeType, Converter={StaticResource NodeTypeToVisibilityConverter}, ConverterParameter=Night}">
+                                            Visibility="{Binding NodeType, Converter={StaticResource NodeTypeToVisibilityConverter}, ConverterParameter=Project|Night}">
                                     <TextBlock Text="{Binding ReviewStatusText}"
                                                VerticalAlignment="Center"
+                                               Visibility="{Binding NodeType, Converter={StaticResource NodeTypeToVisibilityConverter}, ConverterParameter=Project}"
+                                               Foreground="{DynamicResource ReviewStatusReviewedBrush}"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding ReviewStatusText}"
+                                               VerticalAlignment="Center"
+                                               Visibility="{Binding NodeType, Converter={StaticResource NodeTypeToVisibilityConverter}, ConverterParameter=Night}"
                                                ToolTip="Right-click to toggle review status">
                                         <TextBlock.ContextMenu>
                                             <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
@@ -237,7 +243,7 @@
                                             Foreground="{DynamicResource ReviewActionForegroundBrush}"
                                             FontWeight="SemiBold"
                                             Content="Open"
-                                            ToolTip="Open NIGHT folder in ApexAstro"
+                                            ToolTip="Open folder in ApexAstro"
                                             Command="{Binding DataContext.OpenNightInApexAstroCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                             CommandParameter="{Binding AssociatedData}"/>
                                 </StackPanel>

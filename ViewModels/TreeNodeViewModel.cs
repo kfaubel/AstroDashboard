@@ -23,6 +23,8 @@ public class TreeNodeViewModel : BaseViewModel
     public double? AverageHfr { get; }
     public double? MaxHfr { get; }
     public double? Snr { get; }
+    public int ReviewedNightCount { get; }
+    public int TotalNightCount { get; }
     public string FileCountText => FileCount.HasValue ? FileCount.Value.ToString(CultureInfo.InvariantCulture) : string.Empty;
     public string MinutesText => TotalExposureMinutes.HasValue
         ? FormatAsHoursMinutes(TotalExposureMinutes.Value)
@@ -32,9 +34,33 @@ public class TreeNodeViewModel : BaseViewModel
     public string SnrText => Snr.HasValue
         ? Math.Round(Snr.Value, 0, MidpointRounding.AwayFromZero).ToString(CultureInfo.InvariantCulture)
         : (NodeType == "Filter" ? "n/a" : string.Empty);
-    public string ReviewStatusText => NodeType == "Night"
-        ? (Reviewed == true ? "Reviewed" : "Not Reviewed")
-        : string.Empty;
+    public string ReviewStatusText
+    {
+        get
+        {
+            if (NodeType == "Night")
+            {
+                return Reviewed == true ? "Reviewed" : "Not Reviewed";
+            }
+
+            if (NodeType == "Project")
+            {
+                if (TotalNightCount <= 0 || ReviewedNightCount <= 0)
+                {
+                    return "None Reviewed";
+                }
+
+                if (ReviewedNightCount >= TotalNightCount)
+                {
+                    return "All reviewed";
+                }
+
+                return "Partially Reviewed";
+            }
+
+            return string.Empty;
+        }
+    }
 
     private static string FormatAsHoursMinutes(double totalExposureMinutes)
     {
@@ -88,7 +114,9 @@ public class TreeNodeViewModel : BaseViewModel
         double? averageHfr = null,
         double? snr = null,
         double? maxRms = null,
-        double? maxHfr = null)
+        double? maxHfr = null,
+        int reviewedNightCount = 0,
+        int totalNightCount = 0)
     {
         Name = name;
         NodeType = nodeType;
@@ -102,6 +130,8 @@ public class TreeNodeViewModel : BaseViewModel
         AverageHfr = averageHfr;
         MaxHfr = maxHfr;
         Snr = snr;
+        ReviewedNightCount = reviewedNightCount;
+        TotalNightCount = totalNightCount;
         _children = new ObservableCollection<TreeNodeViewModel>();
         _isExpanded = false;
         _isSelected = false;
